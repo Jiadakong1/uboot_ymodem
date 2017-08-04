@@ -286,13 +286,13 @@ void packet_processing(char *buf){
 
                     //if( file_size < seek + packet_size )      //最后一包处理
                         //packet_size = file_size - seek;
-                    // for(i = 0; i < packet_size; i++)
-                    // {
-                    //     printf("%c\t", buf[i]);
-                    //     *psdram_address = buf[i];
-                    //     printf("%c\n", *psdram_address);
-                    //     psdram_address++;
-                    // }
+                    for(i = 0; i < packet_size; i++)
+                    {
+                        //printf("%c\t", buf[i]);
+                        *psdram_address = buf[i+3];
+                        //printf("%c\n", *psdram_address);
+                        psdram_address++;
+                    }
 
                     //write_buf_to_file( buf+3, seek, packet_size );  //将接收的包保存
                     seek += packet_size;
