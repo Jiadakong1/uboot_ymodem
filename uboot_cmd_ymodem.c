@@ -286,10 +286,12 @@ void packet_processing(char *buf){
 
                     //if( file_size < seek + packet_size )      //最后一包处理
                         //packet_size = file_size - seek;
-                    for(i = 0; i < packet_size; i++)
+                    for(i = 3; i < packet_size+3; i++)
                     {
                         //printf("%c\t", buf[i]);
-                        *psdram_address = buf[i+3];
+                        if(0x1a == buf[i])   //不能传测试所有字符的文件，否则会提前退出
+                            break;
+                        *psdram_address = buf[i];
                         //printf("%c\n", *psdram_address);
                         psdram_address++;
                     }
@@ -403,12 +405,28 @@ void packet_reception(char * buf)
 }
 
 
+void data_init(void)
+{
+    receive_status = YMODEM_RX_IDLE;
+    packet_size = 0;
+    seek = 0;
+    packet_total_length = 0;
+    file_name_len = 0;
+    file_size = 0;
+    start_receive = TRUE;
+    end_receive = FALSE;
+    time_out = FALSE;
+    time_count = PACKET_TIMEOUT;
+    time_out_count = 0;
+    sdram_address = SDRAM_ADDRESS;
+    psdram_address = NULL;
+}
 
 static int do_ymodem(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 {
     char buf[1029] = {'0'};
     int delay = 15;  //s
-
+    data_init();
 
     udelay(delay * 1000000);
 
