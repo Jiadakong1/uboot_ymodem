@@ -64,7 +64,7 @@ char * psdram_address = NULL;
 /*********************************************************************
  * FUNCTIONS
  *********************************************************************/
-unsigned long str_to_u32(const char* str);
+static unsigned long str_to_u32(const char* str);
 void packet_processing(char *buf);
 void packet_reception(char * buf);
 static int packet_check(char *buf, int len);
@@ -155,7 +155,7 @@ static unsigned short crc16(const unsigned char *buf, unsigned long count)
     return crc;
 }
 
-unsigned long str_to_u32(const char* str)
+static unsigned long str_to_u32(const char* str)
 {
     const char *s = str;
     unsigned long len;
@@ -169,15 +169,21 @@ unsigned long str_to_u32(const char* str)
         c = *s++;
     }
     else
+    {
+        printf("wrong number!\n");
         return -1;
+    }
+
 
     if((c == 'x') || (c == 'X'))
     {
         c = *s++;
     }
     else
+    {
+        printf("wrong number!\n");
         return -1;
-
+    }
 
 
     for (len = 0; ((c >= '0') && (c <= '9')) || ((c >= 'a') && (c <= 'f')) || ((c >= 'A') && (c <= 'F'))  ; c = *s++) {
