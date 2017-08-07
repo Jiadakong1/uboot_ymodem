@@ -80,7 +80,6 @@ char * psdram_address = NULL;
 /*********************************************************************
  * FUNCTIONS
  *********************************************************************/
-static unsigned long str_to_u32(const char* str);
 void packet_processing(char *buf);
 void packet_reception(char * buf);
 static int packet_check(char *buf, int len);
@@ -208,7 +207,8 @@ static unsigned short crc16(const unsigned char *buf, unsigned long count)
     return crc;
 }
 
-static unsigned long str_to_u32(const char* str)
+
+static unsigned long str16_to_u32(const char* str)
 {
     const char *s = str;
     unsigned long len;
@@ -252,6 +252,24 @@ static unsigned long str_to_u32(const char* str)
     return len;
 }
 
+
+static unsigned long str10_to_u32(const char* str)
+{
+    const char *s = str;
+    unsigned long len;
+    int c;
+
+    do {                //得到第一个字符，跳过空格
+        c = *s++;
+    } while (c == ' ');
+
+    for (len = 0; (c >= '0') && (c <= '9'); c = *s++) {
+        c -= '0';
+        len *= 10;
+        len += c;
+    }
+    return len;
+}
 //
 // unsigned long str_to_u32(const char* str)
 // {
@@ -271,6 +289,50 @@ static unsigned long str_to_u32(const char* str)
 //     return len;
 // }
 
+
+static void uart_set_baudrate(unsigned long baud)
+{
+	/* Calculation results. */
+	unsigned int  calc_bauderror,bdiv, bgen;
+	unsigned long calc_baud = 0;
+    unsigned long clock = 99999999;
+
+	/* Covering case where input clock is so slow */
+
+
+	/*                master clock
+	 * Baud rate = ------------------
+	 *              bgen * (bdiv + 1)
+	 *
+	 * Find acceptable values for baud generation.
+	 */
+	for (bdiv = 4; bdiv < 255; bdiv++) {
+		bgen = clock / (baud * (bdiv + 1));
+		if (bgen < 2 || bgen > 65535)
+			continue;
+
+		calc_baud = clock / (bgen * (bdiv + 1));
+
+		/*
+		 * Use first calculated baudrate with
+		 * an acceptable (<3%) error
+		 */
+		if (baud > calc_baud)
+			calc_bauderror = baud - calc_baud;
+		else
+			calc_bauderror = calc_baud - baud;
+		if (((calc_bauderror * 100) / baud) < 3)
+			break;
+	}
+	//115200 bdiv = 4, bgen = 173
+	//9600   bdiv = 4, bgen = 2083
+    printf("bdiv = %d\t bgen = %d\n",  bdiv, bgen);
+    *p_uart_zynq_bgen = bgen;
+    *p_uart_zynq_bdiv = bdiv;
+
+	// writel(bdiv, &regs->baud_rate_divider);
+	// writel(bgen, &regs->baud_rate_gen);
+}
 
 void packet_processing(char *buf){
     int i = 0;
@@ -403,7 +465,7 @@ receive_exit:
             end_receive = TRUE;
             return;
 
-        //错误状态
+        //错误状态static void uart_set_baudrate(unsigned long baud)
 err:
         case YMODEM_RX_ERR:
             printf("error!\n");
@@ -483,15 +545,23 @@ void data_init(void)
 static int do_ymodem(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 {
     char buf[1029] = {'0'};
-    int delay = 15;  //s
+    int delay = 20;  //s
+    unsigned int baudrate = 115200;
     data_init();
 
-    udelay(delay * 1000000);
+
 
     if(argv[1] != NULL)
-        sdram_address = (unsigned int)str_to_u32(argv[1]);
+        sdram_address = (unsigned int)str16_to_u32(argv[1]);
     psdram_address = (char *)sdram_address;
     printf("sdram_address = %x\n", sdram_address);
+
+    if(argv[2] != NULL)
+        baudrate = (unsigned int)str10_to_u32(argv[2]);
+    printf("baudrate = %u\n", baudrate);
+    uart_set_baudrate(baudrate);
+
+    udelay(delay * 1000000);
     printf("start:\n");
     while(1)
     {
@@ -500,13 +570,13 @@ static int do_ymodem(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
             break;
         packet_reception(buf);
     }
-
+    uart_set_baudrate(115200);
     return 0;
 }
 
 
 U_BOOT_CMD(
-    ymodem,    2,  0,  do_ymodem,
+    ymodem,    5,  0,  do_ymodem,
     "ymodem, ---just for test\n",
     "ymodem, for long help.................................\n"
 );
