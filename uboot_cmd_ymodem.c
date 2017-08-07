@@ -43,6 +43,22 @@
 #define CAN (0x18)      /* two of these in succession aborts transfer */
 #define CNC (0x43)      /* character 'C' */
 
+
+
+volatile unsigned int * p_uart_zynq_control = (volatile unsigned int *)0xe0000000;   //第3位和第5位改不了，可能被定义为const了
+volatile unsigned int * p_uart_zynq_mode =    (volatile unsigned int *)0xe0000004;
+volatile unsigned int * p_uart_zynq_bgen =    (volatile unsigned int *)0xe0000018;    //加了volatile之后不能间接寻址？
+volatile unsigned int * p_uart_zynq_channel = (volatile unsigned int *)0xe000002c;
+volatile unsigned int * p_uart_zynq_fifo =    (volatile unsigned int *)0xe0000030;
+volatile unsigned int * p_uart_zynq_bdiv =    (volatile unsigned int *)0xe0000034;
+
+
+#define ZYNQ_UART_SR_TXEMPTY	(1 << 3) /* TX FIFO empty */
+#define ZYNQ_UART_SR_TXACTIVE	(1 << 11)  /* TX active */
+#define ZYNQ_UART_SR_RXEMPTY	0x00000002 /* RX FIFO empty */
+
+
+
 typedef unsigned char uint8;
 
 
@@ -74,11 +90,34 @@ static unsigned short crc16(const unsigned char *buf, unsigned long count);
 void getbuf(char* buf, unsigned int len);
 void putchar1( char ch );
 
+static int uart_putc(char c)
+{
+    while(1)
+    {
+        if ((*p_uart_zynq_channel) & ZYNQ_UART_SR_TXEMPTY)   //1可以发送
+        {
+            *p_uart_zynq_fifo = c;
+            break;
+        }
+    }
+	return 0;
+}
 
+
+static int uart_getc(void)   //用crt或者xshell发送一个字符时，收到字符和换行符， x
+{
+    while(1)
+    {
+        if ((*p_uart_zynq_channel) & ZYNQ_UART_SR_RXEMPTY)
+            ;
+        else
+            return *p_uart_zynq_fifo;
+    }
+}
 
 void putchar1( char ch )
 {
-  putc(ch);
+  uart_putc(ch);
 }
 
 void getbuf(char* buf, unsigned int len)
@@ -86,10 +125,24 @@ void getbuf(char* buf, unsigned int len)
     int i = 0;
     printf("\ngetbuf:  data\n");
     for(i=0; i<len; i++){
-        buf[i] = getc();
+        buf[i] = uart_getc();
     }
 }
 
+
+// void putchar1( char ch )
+// {
+//   putc(ch);
+// }
+//
+// void getbuf(char* buf, unsigned int len)
+// {
+//     int i = 0;
+//     printf("\ngetbuf:  data\n");
+//     for(i=0; i<len; i++){
+//         buf[i] = getc();
+//     }
+// }
 
 static int packet_check(char *buf, int len)
 {
@@ -290,13 +343,12 @@ void packet_processing(char *buf){
                         //exit(0);
                     }
 
-                    //if( file_size < seek + packet_size )      //最后一包处理
-                        //packet_size = file_size - seek;
+
                     for(i = 3; i < packet_size+3; i++)
                     {
                         //printf("%c\t", buf[i]);
-                        if(0x1a == buf[i])   //不能传测试所有字符的文件，否则会提前退出
-                            break;
+                        //if(0x1a == buf[i])   //不能传测试所有字符的文件，否则会提前退出   ??????????可以多开辟一点空间，不最后一包不处理？
+                            //break;
                         *psdram_address = buf[i];
                         //printf("%c\n", *psdram_address);
                         psdram_address++;
